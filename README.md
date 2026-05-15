@@ -1,24 +1,49 @@
 # Voice-Driven Deterministic Prompt Optimization Engine
 
-Full-stack assignment implementation for converting raw voice or unstructured multilingual input into a clean, minimal, high-signal prompt.
+A full-stack chat workflow that converts messy text or voice input into a clean, minimal, high-signal prompt. The system is designed for multilingual, noisy, real-world instructions where the model must first understand intent, ask for confirmation, then optimize only after the user approves.
 
-## Features
+## What This Solves
 
-- Text and voice input support
-- English, Hindi, and Hinglish normalization
-- Intent extraction with confidence score
-- User confirmation before optimization
+Users often give prompts that are vague, mixed-language, too verbose, or contain multiple unrelated tasks. This project turns that raw input into a deterministic workflow:
+
+1. Capture text or voice input.
+2. Normalize English, Hindi, Hinglish, and similar mixed input.
+3. Extract structured intent with confidence.
+4. Detect unsafe, unclear, or multi-task requests.
+5. Ask for confirmation before optimization.
+6. Produce a compact CAVEMAN MODE prompt with token metrics.
+7. Save workflow logs, memory decisions, and graph data.
+
+## Key Features
+
+- React chat interface with text and voice input
+- Groq Whisper transcription for voice input
+- Multilingual normalization and noise removal
+- Structured intent extraction with confidence score
+- Mandatory user confirmation before optimization
 - No confirmation, no execution
-- Multiple unrelated task detection with clarification loop
-- Prompt enhancement and minimum viable prompt generation
-- Token metrics with clarified-vs-reduced reporting
-- Validation layer for alignment, format, and efficiency
-- SQLite sessions, workflow logs, and memory output
-- React chat UI and workflow graph visualization
+- Clarification loop for multiple unrelated tasks
+- Unsafe or unauthorized request rejection
+- CAVEMAN MODE token optimization with 30-50% target
+- Validation layer for intent alignment, format, and efficiency
+- SQLite persistence for sessions, workflow logs, and memory output
+- Live workflow graph visualization using React Flow
+- Pytest coverage for workflow rules and deterministic examples
 
 ## Architecture
 
-The Mermaid diagram is available in [ARCHITECTURE.md](ARCHITECTURE.md).
+The Mermaid workflow diagram is available in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+```text
+User Input / Voice
+  -> Normalization + Guardrails
+  -> Intent Extraction
+  -> Confidence / Ambiguity Check
+  -> User Confirmation
+  -> Prompt Optimization
+  -> Validation
+  -> Memory + Logs + Graph
+```
 
 ## Project Structure
 
@@ -29,8 +54,10 @@ backend/
   database.py          SQLite persistence and workflow logs
   models.py            Pydantic request/response schemas
   prompts.py           Deterministic LLM prompts
+  graph_workflow.py    LangGraph workflow reference
 frontend/
-  src/                 React chat and graph UI
+  src/                 React chat UI and workflow graph
+tests/                 Workflow and optimization tests
 init_db.sql            Database initialization script
 requirements.txt       Backend dependencies
 .env.example           Environment variable template
@@ -38,26 +65,26 @@ requirements.txt       Backend dependencies
 
 ## Setup
 
-1. Create and activate a Python environment.
+Create and activate a Python environment:
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
 ```
 
-2. Install backend dependencies.
+Install backend dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Create `.env` from `.env.example`.
+Create `.env`:
 
 ```bash
 copy .env.example .env
 ```
 
-Add your Groq API key:
+Add your Groq credentials:
 
 ```text
 GROQ_API_KEY=your_groq_api_key_here
@@ -65,14 +92,14 @@ GROQ_CHAT_MODEL=llama-3.3-70b-versatile
 GROQ_CHAT_MODEL_FALLBACKS=llama-3.1-8b-instant
 ```
 
-4. Install frontend dependencies.
+Install frontend dependencies:
 
 ```bash
 cd frontend
 npm install
 ```
 
-## Run
+## Run Locally
 
 Start backend from the repository root:
 
@@ -99,7 +126,70 @@ http://localhost:5173
 pytest
 ```
 
-## Example API Calls
+Current test coverage checks:
+
+- multiple-task clarification
+- same-session ambiguity resolution
+- deterministic prompt examples
+- contextual memory follow-up
+- unsafe request rejection
+- token reduction target examples
+
+## Demo Flow
+
+Use this flow during evaluation:
+
+1. Send a normal prompt:
+
+```text
+Ek marketing plan bana do for gym app.
+```
+
+Expected optimized output:
+
+```text
+Create a 3-step marketing plan for a gym app.
+Output: bullet points
+Constraint: under 100 words
+```
+
+2. Send a voice or text prompt in mixed language:
+
+```text
+Meko pasta ki recipe chahiye beginner ke liye.
+```
+
+Expected compact output:
+
+```text
+Beginner pasta | Text
+```
+
+3. Send multiple unrelated tasks:
+
+```text
+Create a plan for developing a gym mobile application and a pasta recipe
+```
+
+Expected behavior:
+
+```text
+The app asks which task to proceed with before optimization.
+```
+
+4. Try optimizing without confirmation:
+
+```text
+The backend blocks optimization until the intent is confirmed.
+```
+
+5. Check the graph panel:
+
+```text
+Workflow nodes update as the session moves through normalization, intent extraction, confirmation, optimization, validation, and memory.
+```
+
+## API Examples
 
 Create a text session:
 
@@ -129,7 +219,7 @@ Optimize prompt:
 curl -X POST http://localhost:8000/api/optimize-prompt/{session_id}
 ```
 
-Get graph data:
+Get workflow graph:
 
 ```bash
 curl http://localhost:8000/api/session/{session_id}/graph
@@ -141,58 +231,17 @@ Get decision logs:
 curl http://localhost:8000/api/session/{session_id}/history
 ```
 
-## Expected Example
+## Design Decisions
 
-Input:
-
-```text
-Ek marketing plan bana do for gym app.
-```
-
-Optimized prompt:
-
-```text
-Create a 3-step marketing plan for a gym app.
-Output: bullet points
-Constraint: under 100 words
-```
-
-## Failure Handling Examples
-
-Multiple unrelated tasks:
-
-```text
-Create a plan for developing a gym mobile application and a pasta recipe
-```
-
-System response:
-
-```text
-I detected two different tasks: Pasta Recipe and Gym App Development. I can only optimize one clear instruction at a time to maintain high-signal quality. Which one should I proceed with?
-```
-
-The UI shows choice buttons for the detected tasks. Selecting one resolves the ambiguity inside the same session, then the app asks for confirmation before optimization. This blocks optimization until the ambiguity is resolved and records:
-
-```text
-Log: Detected multiple unrelated domains.
-Action: Triggered clarification loop.
-Reasoning: To prevent context window wastage and maintain deterministic behavior.
-```
-
-## Demo Checklist
-
-- Show text input
-- Show voice input
-- Show intent confirmation
-- Show no-confirmation/no-execution behavior
-- Show memory save and skip logs
-- Show graph visualization
-- Show decision logs from session history
-- Show final memory output in UI
-- Show token reduction or clarified token change
+- Deterministic workflow: each stage logs its decision and blocks unsafe transitions.
+- Confirmation-first execution: optimization is impossible until the extracted intent is confirmed.
+- CAVEMAN MODE optimization: prompts are compressed into high-signal instructions while preserving constraints.
+- Memory transparency: the final response includes saved memory so the evaluator can inspect what the system retained.
+- Prototype-safe guardrails: harmful or unauthorized requests are rejected before intent confirmation.
 
 ## Notes
 
-- Do not commit `.env` or database files.
-- Use `.env.example` for sharing required environment variables.
+- This is an assignment-ready prototype, not a hardened production deployment.
+- Do not commit `.env`, database files, `node_modules`, or build artifacts.
 - `prompt_optimizer.db` is created automatically by the backend if missing.
+- Production hardening would add persistent server-side sessions, restricted CORS, auth, rate limiting, monitoring, and managed Postgres.
