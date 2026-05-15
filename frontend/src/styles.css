@@ -1,0 +1,254 @@
+:root {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: #102033;
+  background:
+    radial-gradient(circle at top left, #ffe0b8 0%, transparent 28%),
+    linear-gradient(135deg, #f4f1ea 0%, #d9e8f2 50%, #f7d9c4 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.15fr) minmax(320px, 0.85fr);
+  gap: 24px;
+  padding: 24px;
+  min-height: 100vh;
+}
+
+.panel {
+  backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(16, 32, 51, 0.1);
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(33, 52, 72, 0.14);
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 24px 24px 0;
+}
+
+.panel-header h1,
+.panel-header h2 {
+  margin: 0;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #a14c20;
+}
+
+.panel-copy {
+  margin: 10px 0 0;
+  color: #526175;
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  height: calc(100vh - 140px);
+  padding: 24px;
+}
+
+.messages {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-right: 6px;
+}
+
+.message {
+  max-width: 90%;
+  padding: 14px 16px;
+  border-radius: 18px;
+  animation: fade-up 220ms ease;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: #102033;
+  color: #f8fbff;
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background: #fff8ef;
+  color: #102033;
+}
+
+.content {
+  line-height: 1.5;
+}
+
+.intent-card,
+.result-card {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(16, 32, 51, 0.08);
+}
+
+.intent-card h4,
+.result-card h4 {
+  margin: 0 0 12px;
+}
+
+.intent-card p,
+.result-card p {
+  margin: 8px 0;
+}
+
+.confirmation-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.confirmation-buttons button,
+.input-area button {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.confirmation-buttons button:hover,
+.input-area button:hover {
+  transform: translateY(-1px);
+}
+
+.confirmation-buttons button:first-child,
+.input-area button {
+  background: #a14c20;
+  color: #fff;
+}
+
+.confirmation-buttons button:last-child {
+  background: #f3e0d5;
+  color: #7a3412;
+}
+
+.input-area {
+  display: flex;
+  gap: 12px;
+}
+
+.input-area input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(16, 32, 51, 0.14);
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.status-bar {
+  font-size: 0.92rem;
+  color: #526175;
+}
+
+.result-card pre {
+  white-space: pre-wrap;
+  margin: 0;
+  font-family: "Consolas", "Courier New", monospace;
+  background: #fff;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 32, 51, 0.08);
+}
+
+.metrics {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 0.92rem;
+}
+
+.reduction {
+  color: #0c7c59;
+  font-weight: 700;
+}
+
+.graph-shell {
+  height: calc(100vh - 190px);
+  padding: 0 24px 24px;
+}
+
+.graph-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  border-radius: 20px;
+  border: 1px dashed rgba(16, 32, 51, 0.18);
+  background: rgba(255, 255, 255, 0.4);
+  color: #526175;
+  text-align: center;
+  padding: 24px;
+}
+
+.graph-canvas {
+  height: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 32, 51, 0.08);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-container,
+  .graph-shell {
+    height: auto;
+  }
+
+  .messages {
+    min-height: 320px;
+  }
+
+  .graph-shell {
+    padding-top: 24px;
+  }
+
+  .graph-canvas,
+  .graph-empty {
+    height: 420px;
+  }
+}
