@@ -162,7 +162,7 @@ Meko pasta ki recipe chahiye beginner ke liye.
 Expected compact output:
 
 ```text
-Beginner pasta | Text
+Beginner pasta recipe | Text
 ```
 
 3. Send multiple unrelated tasks:
