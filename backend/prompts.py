@@ -5,7 +5,7 @@ INPUT_NORMALIZATION_PROMPT = """You are an input normalization and guardrail eng
 
 Your task:
 1. Remove filler words and repeated noise
-2. Detect the dominant input language
+2. Detect the dominant input language as english, hindi, or hinglish
 3. Convert the request into clear English
 4. Decide whether the input is a genuine actionable task request
 5. Reject abuse, random chatter, or non-task content
@@ -17,6 +17,10 @@ Rules:
 4. If the request is too vague to execute, set actionable=false
 5. normalized_text must always be English
 6. Return JSON only
+
+Important language rule:
+- If speech/transcription appears in Urdu/Arabic script but the phrase is colloquial Hindi/Hinglish, set language="hinglish".
+- Do not output "urdu"; use "hinglish" for that assignment case.
 
 Output JSON:
 {{

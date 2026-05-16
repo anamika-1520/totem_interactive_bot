@@ -3,6 +3,7 @@ import os
 os.environ.setdefault("GROQ_API_KEY", "test-key")
 
 from backend.main import (
+    _apply_input_language,
     _apply_contextual_memory,
     _intent_from_task_choice,
     _multiple_task_intent,
@@ -12,7 +13,7 @@ from backend.main import (
 )
 from fastapi import HTTPException
 
-from backend.services import add_token_metrics, optimize_prompt_tokens
+from backend.services import add_token_metrics, normalize_language_label, optimize_prompt_tokens
 
 
 def test_multiple_unrelated_tasks_trigger_clarification():
@@ -174,3 +175,43 @@ def test_python_file_merger_hits_reduction_goal():
 
     assert result["optimized_prompt"] == "Python file merger | Code"
     assert 30 <= result["reduction_pct"] <= 50
+
+
+def test_urdu_script_transcription_is_treated_as_hinglish_source_language():
+    raw_text = "میرے کو بجیا بنانے کی ریسپی بتانا آئیو بجیا"
+    intent = _apply_input_language(
+        {
+            "intent": "provide_recipe",
+            "task": "Share the recipe for making Bajia",
+            "domain": "general",
+            "constraints": [],
+            "output_format": "text",
+            "audience": "food_enthusiasts",
+            "language_detected": "english",
+            "confidence_score": 0.9,
+        },
+        {"language": "urdu"},
+        raw_text,
+    )
+
+    assert normalize_language_label("urdu", raw_text) == "hinglish"
+    assert intent["language_detected"] == "hinglish"
+
+
+def test_bajia_recipe_prompt_stays_compact():
+    result = optimize_prompt_tokens(
+        {
+            "intent": "provide_recipe",
+            "task": "Share the recipe for making Bajia",
+            "domain": "culinary",
+            "constraints": [],
+            "output_format": "text",
+            "audience": "food_enthusiasts",
+            "language_detected": "hinglish",
+            "confidence_score": 0.9,
+        },
+        "Tell me the recipe for making bajia",
+    )
+
+    assert result["optimized_prompt"] == "Bajia recipe | Text"
+    assert result["optimized_tokens"] <= result["original_tokens"]

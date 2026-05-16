@@ -162,7 +162,7 @@ Meko pasta ki recipe chahiye beginner ke liye.
 Expected compact output:
 
 ```text
-Beginner pasta recipe | Text
+Beginner pasta | Text
 ```
 
 3. Send multiple unrelated tasks:
@@ -239,3 +239,9 @@ curl http://localhost:8000/api/session/{session_id}/history
 - Memory transparency: the final response includes saved memory so the evaluator can inspect what the system retained.
 - Prototype-safe guardrails: harmful or unauthorized requests are rejected before intent confirmation.
 
+## Notes
+
+- This is an assignment-ready prototype, not a hardened production deployment.
+- Do not commit `.env`, `node_modules`, or build artifacts.
+- `prompt_optimizer.db` is created automatically by the backend if missing.
+- Production hardening would add persistent server-side sessions, restricted CORS, auth, rate limiting, monitoring, and managed Postgres.

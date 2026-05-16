@@ -13,6 +13,7 @@ from .services import (
     enforce_token_target,
     extract_intent_structured,
     normalize_and_filter_input,
+    normalize_language_label,
     optimize_prompt_tokens,
     repair_optimized_prompt,
     transcribe_audio,
@@ -96,6 +97,10 @@ SUPPORTED_AUDIO_CONTENT_TYPES = {
 }
 
 
+def _has_arabic_script(text: str) -> bool:
+    return bool(re.search(r"[\u0600-\u06FF]", text))
+
+
 def _prepare_session_input(raw_text: str) -> dict:
     """Normalize input and apply guardrails before downstream workflow steps."""
     unsafe_reason = unsafe_request_reason(raw_text)
@@ -135,6 +140,19 @@ def _prepare_session_input(raw_text: str) -> dict:
         "normalized_input": normalized_text,
         "input_meta": preprocessed,
     }
+
+
+def _hide_script_mismatch_for_voice(prepared: dict) -> dict:
+    """Avoid showing Urdu-script STT output when the request is handled as Hinglish."""
+    input_meta = prepared.get("input_meta", {})
+    raw_input = prepared.get("raw_input", "")
+    if input_meta.get("language") == "hinglish" and _has_arabic_script(raw_input):
+        display_text = prepared.get("normalized_input") or prepared.get("cleaned_input") or raw_input
+        prepared["original_transcription"] = raw_input
+        prepared["raw_input"] = display_text
+        prepared["cleaned_input"] = display_text
+        input_meta["cleaned_text"] = display_text
+    return prepared
 
 
 def _persist_memory(session_id: str, key: str, value: dict):
@@ -177,7 +195,12 @@ def _multiple_task_intent(text: str) -> dict | None:
         {
             "label": "House Cleaning",
             "domain": "Home Maintenance",
-            "terms": ["clean", "cleaning", "house", "home", "housekeeping"],
+            "terms": ["clean", "cleaning", "house", "home", "housekeeping", "household chores", "chores"],
+        },
+        {
+            "label": "Sewing",
+            "domain": "Creative / Practical Skills",
+            "terms": ["sew", "sewing", "stitch", "stitching", "tailor", "silai"],
         },
         {
             "label": "Gym App Development",
@@ -209,7 +232,7 @@ def _multiple_task_intent(text: str) -> dict | None:
 
 def _normalize_intent(intent_data: dict) -> dict:
     task = str(intent_data.get("task") or intent_data.get("intent") or "").lower()
-    if "pasta" in task and "recipe" in task:
+    if "recipe" in task:
         intent_data["domain"] = "culinary"
         intent_data["audience"] = intent_data.get("audience") or "home_cooks"
         intent_data["output_format"] = intent_data.get("output_format") or "text"
@@ -217,6 +240,13 @@ def _normalize_intent(intent_data: dict) -> dict:
         intent_data["domain"] = "technical"
         intent_data["audience"] = "developers"
         intent_data["output_format"] = "code"
+    return intent_data
+
+
+def _apply_input_language(intent_data: dict, input_meta: dict, raw_text: str) -> dict:
+    source_language = normalize_language_label(input_meta.get("language"), raw_text)
+    intent_data["language_detected"] = source_language
+    input_meta["language"] = source_language
     return intent_data
 
 
@@ -285,6 +315,17 @@ def _intent_from_task_choice(selected_task: str) -> dict:
             "language_detected": "english",
             "confidence_score": 0.9,
         }
+    if "sew" in task or "stitch" in task or "silai" in task:
+        return {
+            "intent": "explain_sewing_basics",
+            "task": "Explain basic sewing steps",
+            "domain": "creative",
+            "constraints": [],
+            "output_format": "text",
+            "audience": "beginners",
+            "language_detected": "english",
+            "confidence_score": 0.9,
+        }
     raise HTTPException(400, "Please choose one of the detected tasks.")
 
 
@@ -322,7 +363,7 @@ async def process_voice(audio: UploadFile):
         raise HTTPException(429, "Groq voice transcription rate limit reached. Please wait a few minutes or use text input.")
     except APIConnectionError:
         raise HTTPException(503, "Groq voice transcription connection failed. Please retry or use text input.")
-    prepared = _prepare_session_input(text)
+    prepared = _hide_script_mismatch_for_voice(_prepare_session_input(text))
     
     # Create session
     db.create_session(session_id)
@@ -336,19 +377,22 @@ async def process_voice(audio: UploadFile):
         session_id,
         "voice_transcription",
         {"filename": filename},
-        {"transcribed_text": text},
+        {
+            "transcribed_text": prepared["raw_input"],
+            "original_transcription": prepared.get("original_transcription", text),
+        },
     )
     db.log_step(
         session_id,
         "input_normalization",
-        {"raw_input": text},
+        {"raw_input": prepared["raw_input"]},
         prepared["input_meta"],
     )
     _persist_memory(session_id, "normalization", prepared["input_meta"])
     
     return {
         "session_id": session_id,
-        "transcribed_text": text,
+        "transcribed_text": prepared["raw_input"],
         "normalized_text": prepared["normalized_input"],
         "status": "transcribed"
     }
@@ -392,14 +436,20 @@ async def extract_intent_endpoint(session_id: str):
     if session_id not in sessions:
         raise HTTPException(404, "Session not found")
     
-    raw_input = sessions[session_id].get("normalized_input") or sessions[session_id]["raw_input"]
+    normalized_input = sessions[session_id].get("normalized_input") or sessions[session_id]["raw_input"]
+    original_input = sessions[session_id]["raw_input"]
+    input_meta = sessions[session_id].get("input_meta", {})
     
     # Extract intent using structured output
-    intent_data = _normalize_intent(
-        _apply_contextual_memory(
-            raw_input,
-            _multiple_task_intent(raw_input) or extract_intent_structured(raw_input),
-        )
+    intent_data = _apply_input_language(
+        _normalize_intent(
+            _apply_contextual_memory(
+                normalized_input,
+                _multiple_task_intent(normalized_input) or extract_intent_structured(normalized_input),
+            )
+        ),
+        input_meta,
+        original_input,
     )
     confidence = intent_data.get("confidence_score", 1)
     
@@ -407,7 +457,7 @@ async def extract_intent_endpoint(session_id: str):
     db.log_step(
         session_id,
         "intent_extraction",
-        {"raw_input": raw_input},
+        {"raw_input": original_input, "normalized_input": normalized_input},
         intent_data
     )
     
@@ -469,7 +519,11 @@ async def resolve_clarification(response: ClarificationResponse):
     if session_id not in sessions:
         raise HTTPException(404, "Session not found")
 
-    intent_data = _intent_from_task_choice(response.selected_task)
+    intent_data = _apply_input_language(
+        _intent_from_task_choice(response.selected_task),
+        sessions[session_id].get("input_meta", {}),
+        sessions[session_id].get("raw_input", ""),
+    )
     sessions[session_id]["intent"] = intent_data
     sessions[session_id]["normalized_input"] = intent_data["task"]
     sessions[session_id]["status"] = "pending_confirmation"

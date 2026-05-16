@@ -17,6 +17,20 @@ CHAT_MODEL_FALLBACKS = [
 ]
 
 
+def normalize_language_label(language: str | None, source_text: str = "") -> str:
+    """Keep language labels stable for the UI and assignment schema."""
+    label = (language or "").strip().lower()
+    if label in {"english", "hindi", "hinglish"}:
+        return label
+    if label in {"urdu", "arabic", "other"} and re.search(r"[\u0600-\u06FF]", source_text):
+        return "hinglish"
+    if re.search(r"[\u0900-\u097F]", source_text):
+        return "hindi"
+    if re.search(r"[^\x00-\x7F]", source_text):
+        return "hinglish"
+    return "english"
+
+
 def unsafe_request_reason(text: str) -> str:
     lowered = text.lower()
     unsafe_patterns = [
@@ -61,7 +75,7 @@ def transcribe_audio(audio_input: bytes | str, filename: str = "audio.webm") -> 
         file=file_payload,
         model="whisper-large-v3",
         response_format="text",
-        # prompt="Include Hindi and English words", # Optional: Helps with Hinglish
+        prompt="The speaker may use Hindi, Hinglish, or English. Prefer Hinglish/Hindi transcription; do not convert colloquial Hindi speech into Urdu script.",
     )
     return transcription
 
@@ -74,7 +88,7 @@ def normalize_and_filter_input(text: str) -> dict:
         return {
             "cleaned_text": text.strip(),
             "normalized_text": text.strip(),
-            "language": "hinglish" if re.search(r"[^\x00-\x7F]", text) else "english",
+            "language": normalize_language_label(None, text),
             "confidence": 1.0,
             "is_task_request": True,
             "actionable": False,
@@ -101,6 +115,7 @@ def normalize_and_filter_input(text: str) -> dict:
         return _fallback_normalization(text)
 
     result = json.loads(response.choices[0].message.content)
+    result["language"] = normalize_language_label(result.get("language"), text)
     combined = " ".join(
         str(result.get(key, ""))
         for key in ("cleaned_text", "normalized_text")
@@ -195,8 +210,14 @@ def _deterministic_example_prompt(intent_json: dict) -> str | None:
             "Output: 20 bullet points"
         )
 
+    if any(word in task for word in ["notify_completion", "completion", "complete and saved"]):
+        return "Work complete saved notification letter | Text"
+
     if "pasta" in task and "recipe" in task:
         return "Beginner pasta | Text" if "beginner" in task else "Pasta recipe | Text"
+
+    if "recipe" in task and any(word in task for word in ["bajia", "bhajia", "pakora", "pakoda"]):
+        return "Bajia recipe | Text"
 
     if "unit test" in task and "area of a circle" in task:
         return "Python circle-area tests | Code"
@@ -226,7 +247,7 @@ def _fallback_normalization(text: str) -> dict:
     return {
         "cleaned_text": cleaned,
         "normalized_text": normalized,
-        "language": "hinglish" if re.search(r"[^\x00-\x7F]", text) else "english",
+        "language": normalize_language_label(None, text),
         "confidence": 0.75,
         "is_task_request": True,
         "actionable": bool(cleaned),
@@ -359,8 +380,12 @@ def _compact_prompt_from_intent(intent_json: dict) -> str:
         return "Create a 3-step marketing plan for a gym app.\nOutput: bullet points\nConstraint: under 100 words"
     if "gym" in combined and "prompt" in combined and re.search(r"\b20\b", combined):
         return "Create a gym app enhancement prompt for stakeholders.\nOutput: 20 bullet points"
+    if any(word in combined for word in ["notify_completion", "completion", "complete and saved"]):
+        return "Work complete saved notification letter | Text"
     if "pasta" in combined and "recipe" in combined:
         return "Beginner pasta | Text" if "beginner" in combined else "Pasta recipe | Text"
+    if "recipe" in combined and any(word in combined for word in ["bajia", "bhajia", "pakora", "pakoda"]):
+        return "Bajia recipe | Text"
     if "unit test" in combined and "area of a circle" in combined:
         return "Python circle-area tests | Code"
     if "area of a circle" in combined and "python" in combined:
